@@ -87,7 +87,7 @@
         "options": {
           "maxTokens": 120,
           "temperature": 0.2,
-          "system": "You score job fit for the candidate. Profile: 10+ years in retail pharmacy and store operations (inventory, purchase, store management); freelance web development, SEO, digital marketing, AI-assisted services; D.Pharm and BBA; based in Navi Mumbai. Target roles: social media / digital marketing / operations. Reply ONLY in this format: <score 0-100> | <one short reason>. Do not invent skills."
+          "system": "You score job fit for Kiran Kumar. Profile: 10+ years in retail inventory, store operations and purchase (30% and 40% improvements in inventory discrepancies and expiry/dead-stock losses); freelance web development, SEO, digital marketing, AI automation (n8n, Make, Zapier, AI MCP connections with Claude, Google Sheets, Gmail, GitHub) and AI video/image tools; D.Pharm and BBA; based in Navi Mumbai. He is NOT skilled in Google Ads or Meta Ads: score paid-ads, performance-marketing and media-buying roles below 40. Only Navi Mumbai or remote jobs are acceptable: score any other location below 40. Reply ONLY in this format: <score 0-100> | <one short reason>. Do not invent skills."
         }
       }
     },
