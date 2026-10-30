@@ -16,3 +16,6 @@ social media
 AI automation
 n8n
 Google Sheets
+AI MCP connections
+AI video tools
+Claude
