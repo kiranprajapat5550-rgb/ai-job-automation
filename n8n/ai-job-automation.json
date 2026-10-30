@@ -1,0 +1,183 @@
+{
+  "name": "AI Job Automation System",
+  "nodes": [
+    {
+      "name": "Daily 9 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [0, 0],
+      "parameters": { "rule": { "interval": [{ "field": "days", "daysInterval": 1, "triggerAtHour": 9, "triggerAtMinute": 0 }] } }
+    },
+    {
+      "name": "Fetch Jobs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [224, 0],
+      "parameters": { "method": "GET", "url": "SET_YOUR_JOB_API_URL_HERE" }
+    },
+    {
+      "name": "Split Jobs",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1.1,
+      "position": [448, 0],
+      "parameters": { "fieldToSplitOut": "results", "include": "noOtherFields" }
+    },
+    {
+      "name": "Normalize Jobs",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [672, 0],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            { "id": "a1", "name": "job_title", "value": "={{ $json.title }}", "type": "string" },
+            { "id": "a2", "name": "company", "value": "={{ $json.company?.display_name ?? \"\" }}", "type": "string" },
+            { "id": "a3", "name": "location", "value": "={{ $json.location?.display_name ?? \"\" }}", "type": "string" },
+            { "id": "a4", "name": "job_url", "value": "={{ $json.redirect_url }}", "type": "string" },
+            { "id": "a5", "name": "posted_on", "value": "={{ $json.created ?? \"\" }}", "type": "string" },
+            { "id": "a6", "name": "found_on", "value": "={{ $now.toFormat(\"yyyy-MM-dd\") }}", "type": "string" },
+            { "id": "a7", "name": "status", "value": "New", "type": "string" },
+            { "id": "a8", "name": "match_score", "value": "", "type": "string" },
+            { "id": "a9", "name": "approval", "value": "", "type": "string" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Keep Valid Jobs",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.4,
+      "position": [896, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            { "id": "c1", "leftValue": "={{ $json.job_url }}", "operator": { "type": "string", "operation": "notEmpty" }, "rightValue": "" },
+            { "id": "c2", "leftValue": "={{ $json.job_title }}", "operator": { "type": "string", "operation": "notEmpty" }, "rightValue": "" }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Remove Seen Jobs",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [1120, 0],
+      "parameters": {
+        "operation": "removeItemsSeenInPreviousExecutions",
+        "logic": "removeItemsWithAlreadySeenKeyValues",
+        "dedupeValue": "={{ $json.job_url }}",
+        "options": { "scope": "workflow", "historySize": 10000 }
+      }
+    },
+    {
+      "name": "Claude Job Match",
+      "type": "@n8n/n8n-nodes-langchain.anthropic",
+      "typeVersion": 1,
+      "position": [1344, 0],
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "modelId": { "__rl": true, "mode": "list", "value": "claude-sonnet-4-5", "cachedResultName": "Claude Sonnet" },
+        "messages": { "values": [{ "role": "user", "content": "={{ 'Job title: ' + $json.job_title + '\\nCompany: ' + $json.company + '\\nLocation: ' + $json.location + '\\nURL: ' + $json.job_url }}" }] },
+        "simplify": true,
+        "options": {
+          "maxTokens": 120,
+          "temperature": 0.2,
+          "system": "You score job fit for the candidate. Profile: 10+ years in retail pharmacy and store operations (inventory, purchase, store management); freelance web development, SEO, digital marketing, AI-assisted services; D.Pharm and BBA; based in Navi Mumbai. Target roles: social media / digital marketing / operations. Reply ONLY in this format: <score 0-100> | <one short reason>. Do not invent skills."
+        }
+      }
+    },
+    {
+      "name": "Attach Match Score",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [1568, 0],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            { "id": "b1", "name": "job_title", "value": "={{ $('Remove Seen Jobs').item.json.job_title }}", "type": "string" },
+            { "id": "b2", "name": "company", "value": "={{ $('Remove Seen Jobs').item.json.company }}", "type": "string" },
+            { "id": "b3", "name": "location", "value": "={{ $('Remove Seen Jobs').item.json.location }}", "type": "string" },
+            { "id": "b4", "name": "job_url", "value": "={{ $('Remove Seen Jobs').item.json.job_url }}", "type": "string" },
+            { "id": "b5", "name": "posted_on", "value": "={{ $('Remove Seen Jobs').item.json.posted_on }}", "type": "string" },
+            { "id": "b6", "name": "found_on", "value": "={{ $('Remove Seen Jobs').item.json.found_on }}", "type": "string" },
+            { "id": "b7", "name": "status", "value": "New", "type": "string" },
+            { "id": "b8", "name": "match_score", "value": "={{ $json.content?.[0]?.text ?? $json.text ?? '' }}", "type": "string" },
+            { "id": "b9", "name": "approval", "value": "", "type": "string" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Save to Job Tracker",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1792, 0],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "list", "value": "", "cachedResultName": "AI Job Tracker" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Jobs" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "found_on": "={{ $json.found_on }}",
+            "job_title": "={{ $json.job_title }}",
+            "company": "={{ $json.company }}",
+            "location": "={{ $json.location }}",
+            "job_url": "={{ $json.job_url }}",
+            "posted_on": "={{ $json.posted_on }}",
+            "status": "={{ $json.status }}",
+            "match_score": "={{ $json.match_score }}",
+            "approval": "={{ $json.approval }}"
+          },
+          "schema": [
+            { "id": "found_on", "displayName": "found_on", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "job_title", "displayName": "job_title", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "company", "displayName": "company", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "location", "displayName": "location", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "job_url", "displayName": "job_url", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "posted_on", "displayName": "posted_on", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "status", "displayName": "status", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "match_score", "displayName": "match_score", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false },
+            { "id": "approval", "displayName": "approval", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": false }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Email Daily Digest",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [2016, 0],
+      "executeOnce": true,
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "SET_YOUR_EMAIL_HERE",
+        "subject": "=New jobs found: {{ $(\"Remove Seen Jobs\").all().length }} ({{ $now.toFormat(\"dd MMM\") }})",
+        "emailType": "html",
+        "message": "=<p>Aaj ki new jobs Job Tracker sheet mein add ho gayi hain. Sheet mein <b>approval</b> column mein <b>Yes</b> likhkar approve karein.</p><ul>{{ $(\"Remove Seen Jobs\").all().map(i => \"<li><a href=\\\"\" + i.json.job_url + \"\\\">\" + i.json.job_title + \"</a> - \" + i.json.company + \" (\" + i.json.location + \")</li>\").join(\"\") }}</ul>",
+        "options": { "appendAttribution": false }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 9 AM": { "main": [[{ "node": "Fetch Jobs", "type": "main", "index": 0 }]] },
+    "Fetch Jobs": { "main": [[{ "node": "Split Jobs", "type": "main", "index": 0 }]] },
+    "Split Jobs": { "main": [[{ "node": "Normalize Jobs", "type": "main", "index": 0 }]] },
+    "Normalize Jobs": { "main": [[{ "node": "Keep Valid Jobs", "type": "main", "index": 0 }]] },
+    "Keep Valid Jobs": { "main": [[{ "node": "Remove Seen Jobs", "type": "main", "index": 0 }]] },
+    "Remove Seen Jobs": { "main": [[{ "node": "Claude Job Match", "type": "main", "index": 0 }]] },
+    "Claude Job Match": { "main": [[{ "node": "Attach Match Score", "type": "main", "index": 0 }]] },
+    "Attach Match Score": { "main": [[{ "node": "Save to Job Tracker", "type": "main", "index": 0 }]] },
+    "Save to Job Tracker": { "main": [[{ "node": "Email Daily Digest", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
